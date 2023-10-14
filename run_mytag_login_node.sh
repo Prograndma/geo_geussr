@@ -16,9 +16,11 @@ fi
 
 # run a shell 
 # Ensures that the run_training doesn't try using cuda
-enroot start \
-       --mount /lustre/scratch/usr/${USER}:/home/${USER}/compute --rw \
-       --mount ${HOME}/hf_models:/app/hf_models \
-       --mount ${HOME}/output_model:/app/output_model \
+enroot start  --mount /lustre/scratch/usr/${USER}:/home/${USER}/compute --rw \
+       --mount ${HOME}/CS674/project1:/app/CS674/project1 --rw \
+       --mount ${HOME}/CS674/project1/base_ViT:/app/CS674/project1/base_ViT --rw \
+       --mount ${HOME}/CS674/project1/checkpoints:/app/CS674/project1/checkpoints --rw \
+       --mount ${HOME}/CS674/project1/dataset:/app/CS674/project1/dataset --rw \
+       --mount ${HOME}/CS674/project1/processor:/app/CS674/project1/processor --rw \
        $CONTAINER_NAME \
-       bash -c "export CUDA_VISIBLE_DEVICES='' && ./run_training.sh --max_train_steps=0"
+       bash -c "export CUDA_VISIBLE_DEVICES='' && ./run_training.sh --access_internet=1 --max_train_steps=1

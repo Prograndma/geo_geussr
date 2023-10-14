@@ -14,20 +14,21 @@ import os
 
 DIR = "CS674/project1"
 
-SAVE_PATH_DATASET = f"{DIR}/dataset"
-
+SAVE_PATH_DATASET = f"{DIR}/dataset/"
+SAVE_PATH_IMAGE_PROCESSOR = f"{DIR}/processor/"
 VIT_BASE_DIR = f"{DIR}/checkpoints/"
-VIT_BASE_FILENAME = f"{VIT_BASE_DIR}/checkpoint"
 SAVE_PATH_VIT_BASE_MODEL = f"{DIR}/base_ViT/"
+
+
+VIT_BASE_FILENAME = f"{VIT_BASE_DIR}/checkpoint"
+EPOCH_FILE = f"{DIR}/epoch.txt"
+LOSSES_FILE = f"{DIR}/losses.txt"
+VALIDATION_LOSSES_FILE = f"{DIR}/validation_losses.txt"
+
 
 HUGGING_FACE_PRETRAINED_VIT = "google/vit-base-patch16-224-in21k"
 HUGGING_FACE_PRETRAINED_VIT_PROCESSOR = "google/vit-base-patch16-224"
 HUGGING_FACE_DATASET_KEY = "babananabananana/long_lat_maps"
-
-EPOCH_FILE = f"{DIR}/epoch.txt"
-LOSSES_FILE = f"{DIR}/losses.txt"
-VALIDATION_LOSSES_FILE = f"{DIR}/validation_losses.txt"
-TEST_LOSS_FILE = f"{DIR}/test_loss.txt"
 
 
 class CustomViTRegressor(nn.Module):
@@ -52,16 +53,11 @@ class CustomViTRegressor(nn.Module):
             return False
         return True
 
-    def update_model_from_checkpoint(self, latest=True, checkpoint=None):
+    def update_model_from_checkpoint(self):
         if not self.saved_model_exists():
             return "no saved model exists"
-        if latest:
-            path = self.get_last_file()
-        else:
-            if checkpoint is None:
-                path = self.base_filename
-            else:
-                path = f"{self.base_filename}_epoch{checkpoint}"
+
+        path = self.get_last_file()
 
         if not os.path.exists(path):
             raise Exception(f"Model does not exist! {path}")
@@ -171,9 +167,8 @@ def _train(model,
            val_loader,
            optimizer,
            objective,
-           model_name,
            checkpoint_model=True,
-           save_frequency=5,
+           save_frequency=1,
            device='cuda'):
 
     for epoch in range(num_epochs_to_train):
@@ -225,19 +220,6 @@ def _train(model,
                     f.write(str(val_loss) + "\n")
 
 
-def _infer(model, test_loader, objective, model_name, device='cuda'):
-    test_losses = []
-    for x_v, y_v in test_loader:
-        x_v, y_v = x_v['pixel_values'].to(device), y_v.to(device)
-        test_losses.append(objective(model(x_v), y_v).item())
-        val = np.mean(test_losses)
-        test_losses.append(val)
-
-    with open(f"{TEST_LOSS_FILE}", "w") as f:
-        for val_loss in test_losses:
-            f.write(str(val_loss) + "\n")
-
-
 def main(args):
     if args.access_internet == 1:
         dataset = load_dataset(HUGGING_FACE_DATASET_KEY)
@@ -245,93 +227,53 @@ def main(args):
         dataset.save_to_disk(SAVE_PATH_DATASET)
 
         image_processor = ViTImageProcessor.from_pretrained(HUGGING_FACE_PRETRAINED_VIT_PROCESSOR)
-        image_processor.save_pretrained(SAVE_PATH_VIT_IMAGE_PROCESSOR)
-        device = "cpu"
+        image_processor.save_pretrained(SAVE_PATH_IMAGE_PROCESSOR)
+        device = "cuda"         # TODO CHANGE THIS BEFORE SENDING TO DOCKER. NEEDS TO BE "CPU" BECAUSE THE LOGIN NODE DOESN'T HAVE CUDA
     else:
         device = "cuda"
         dataset = load_from_disk(SAVE_PATH_DATASET)
-        image_processor = ViTImageProcessor.from_pretrained(SAVE_PATH_VIT_IMAGE_PROCESSOR)
+        image_processor = ViTImageProcessor.from_pretrained(SAVE_PATH_IMAGE_PROCESSOR)
 
     custom_data_collator = custom_data_collator_function(image_processor)
 
     train_loader = DataLoader(dataset["train"], batch_size=32, collate_fn=custom_data_collator, shuffle=True)
     val_loader = DataLoader(dataset["validation"], batch_size=32, collate_fn=custom_data_collator)
-    test_loader = DataLoader(dataset["test"], batch_size=32, collate_fn=custom_data_collator)
+    # test_loader = DataLoader(dataset["test"], batch_size=32, collate_fn=custom_data_collator)
 
-    if args.use_vit == 1 and args.use_vgg == 1:
-        raise Exception("Can not pass in use_vgg without setting --use_vit=0")
-
-    if args.use_vit == 1:
-        if args.access_internet == 1:
-            model = CustomViTRegressor(should_load_from_disk=False).to(device)
-            losses = []
-            val_losses = []
-        else:
-            model = CustomViTRegressor().to(device)
-            success = model.update_model_from_checkpoint(checkpoint=args.load_epoch)
-            print(success)
-            losses = []
-            val_losses = []
-            with open(f"{PROJECT_DIR}/{VIT}/{LOSSES_FILE}", "r") as f:
-                for line in f:
-                    line = line.strip()
-                    line = line[1:-1]
-                    nums = line.split(',')
-                    epoch = int(nums[0])
-                    loss = float(nums[1])
-
-                    losses.append((epoch, loss))
-            with open(f"{PROJECT_DIR}/{VIT}/{VALIDATION_LOSSES_FILE}", "r") as f:
-                for line in f:
-                    line = line.strip()
-                    line = line[1:-1]
-                    nums = line.split(',')
-                    epoch = int(nums[0])
-                    loss = float(nums[1])
-
-                    val_losses.append((epoch, loss))
-    elif args.use_vgg == 1:
-        if args.access_internet == 1:
-            model = CustomSimpleImageRegressor().to(device)
-            losses = []
-            val_losses = []
-        else:
-            model = CustomSimpleImageRegressor().to(device)
-            success = model.update_model_from_checkpoint(checkpoint=args.load_epoch)
-            print(success)
-            losses = []
-            val_losses = []
-            with open(f"{PROJECT_DIR}/{VGG}/{LOSSES_FILE}", "r") as f:
-                for line in f:
-                    line = line.strip()
-                    line = line[1:-1]
-                    nums = line.split(',')
-                    epoch = int(nums[0])
-                    loss = float(nums[1])
-
-                    losses.append((epoch, loss))
-            with open(f"{PROJECT_DIR}/{VGG}/{VALIDATION_LOSSES_FILE}", "r") as f:
-                for line in f:
-                    line = line.strip()
-                    line = line[1:-1]
-                    nums = line.split(',')
-                    epoch = int(nums[0])
-                    loss = float(nums[1])
-
-                    val_losses.append((epoch, loss))
+    if args.access_internet == 1:
+        model = CustomViTRegressor(should_load_from_disk=False).to(device)
+        losses = []
+        val_losses = []
     else:
-        raise Exception("Can not pass in --use_vit=0 without providing a new model, for example use_vgg=1")
+        model = CustomViTRegressor().to(device)
+        success = model.update_model_from_checkpoint()
+        print(success)
+        losses = []
+        val_losses = []
+        with open(f"{LOSSES_FILE}", "r") as f:
+            for line in f:
+                line = line.strip()
+                line = line[1:-1]
+                nums = line.split(',')
+                epoch = int(nums[0])
+                loss = float(nums[1])
+
+                losses.append((epoch, loss))
+
+        with open(f"{VALIDATION_LOSSES_FILE}", "r") as f:
+            for line in f:
+                line = line.strip()
+                line = line[1:-1]
+                nums = line.split(',')
+                epoch = int(nums[0])
+                loss = float(nums[1])
+
+                val_losses.append((epoch, loss))
 
     objective = euclidean_distance_loss
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-    model_name = VIT if args.use_vit == 1 else VGG
-
-    if args.run_test == 1:
-        print(f"Will use test_loader: {test_loader}")
-        raise Exception("Not Yet implemented")
-    else:
-        _train(model, args.max_train_steps, losses, val_losses, train_loader, val_loader, optimizer, objective, model_name, device=device)
+    _train(model, args.max_train_steps, losses, val_losses, train_loader, val_loader, optimizer, objective, device=device)
 
 
 if __name__ == "__main__":

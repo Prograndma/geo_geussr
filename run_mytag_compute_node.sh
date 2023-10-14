@@ -28,8 +28,11 @@ fi
 # run a shell                                                                                                                                                  
 enroot start \
        --mount /lustre/scratch/usr/${USER}:/home/${USER}/compute --rw \
-       --mount ${HOME}/hf_models:/app/hf_models \
-       --mount ${HOME}/output_model:/app/output_model \
+       --mount ${HOME}/CS674/project1:/app/CS674/project1 --rw \
+       --mount ${HOME}/CS674/project1/base_ViT:/app/CS674/project1/base_ViT --rw \
+       --mount ${HOME}/CS674/project1/checkpoints:/app/CS674/project1/checkpoints --rw \
+       --mount ${HOME}/CS674/project1/dataset:/app/CS674/project1/dataset --rw \
+       --mount ${HOME}/CS674/project1/processor:/app/CS674/project1/processor --rw \
        mycontainer \
-       ./run_training.sh --max_train_steps=400 --local_files_only # the name of the command INSIDE THE CONTAINER that you want to run
+       ./run_training.sh --access_internet=0 --max_train_steps=10 # the name of the command INSIDE THE CONTAINER that you want to run
        
