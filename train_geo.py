@@ -183,8 +183,8 @@ def _train(model,
         for x_v, y_v in val_loader:
             x_v, y_v = x_v['pixel_values'].to(device), y_v.to(device)
             vl.append(objective(model(x_v), y_v).item())
-            val = np.mean(vl)
-            validation_loss_values.append((total_epochs, val))
+        val = np.mean(vl)
+        validation_loss_values.append((total_epochs, val))
 
         # DO AN EPOCH
         batch_losses = []
